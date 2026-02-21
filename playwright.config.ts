@@ -1,5 +1,5 @@
-import 'dotenv/config';
 import { defineConfig } from '@playwright/test';
+import { e2eConfig } from './e2e.config';
 
 export default defineConfig({
   testDir: './tests/specs',
@@ -8,8 +8,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: process.env.BASE_URL || 'http://127.0.0.1:8080',
-    headless: process.env.HEADLESS === 'true',
+    baseURL: e2eConfig.baseUrl,
+    headless: e2eConfig.headless,
     trace: 'on-first-retry',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure'

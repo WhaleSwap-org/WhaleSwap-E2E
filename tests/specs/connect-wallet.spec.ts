@@ -1,7 +1,7 @@
-import 'dotenv/config';
 import { test, expect } from '../fixtures/testWithMockWallet';
+import { e2eConfig } from '../../e2e.config';
 
-const chainQuery = process.env.CHAIN_QUERY || 'local';
+const chainQuery = e2eConfig.chainQuery;
 const shortenAddress = (value: string) => `${value.slice(0, 6)}...${value.slice(-4)}`;
 
 test.describe('WhaleSwap local wallet flow', () => {

@@ -1,10 +1,10 @@
-import 'dotenv/config';
 import { test, expect } from '../fixtures/testWithMockWallet';
 import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
+import { e2eConfig } from '../../e2e.config';
 
-const chainQuery = process.env.CHAIN_QUERY || 'local';
-const rpcUrl = process.env.MOCK_WALLET_RPC_URL || process.env.HARDHAT_RPC_URL || 'http://127.0.0.1:8545';
+const chainQuery = e2eConfig.chainQuery;
+const rpcUrl = e2eConfig.mockWalletRpcUrl;
 const nextOrderIdSelector = '0x2a58b330';
 const whaleSwapAddress = localDeployment.contracts.otcSwap;
 const LTKA = localDeployment.contracts.tokenA.toLowerCase();

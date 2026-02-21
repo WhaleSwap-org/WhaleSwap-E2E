@@ -22,19 +22,17 @@ npx playwright install chromium
 
 ## Environment
 
-Copy and edit:
+No environment file is required for local dev. Defaults are committed in `e2e.config.ts`.
 
-```bash
-cp .env.example .env
-```
-
-Key vars:
+Optional overrides (via shell env or `.env`):
 
 - `BASE_URL` (default: `http://127.0.0.1:8080`)
 - `CHAIN_QUERY` (default: `local`)
 - `MOCK_WALLET_RPC_URL` (default: `http://127.0.0.1:8545`)
 - `MOCK_WALLET_CHAIN_ID` (default: `0x539`)
 - `MOCK_WALLET_ACCOUNT` (default: Hardhat account #1 / maker `0x7099...79c8`)
+
+If you want a local override file, copy `.env.example` to `.env`.
 
 ## Local System Under Test Startup
 

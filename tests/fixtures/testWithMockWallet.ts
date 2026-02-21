@@ -1,4 +1,5 @@
 import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';
+import { e2eConfig } from '../../e2e.config';
 
 type HardhatWallet = {
   account: string;
@@ -11,10 +12,6 @@ type Fixtures = {
   hardhatWallet: HardhatWallet;
   context: BrowserContext;
 };
-
-const DEFAULT_ACCOUNT = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
-const DEFAULT_CHAIN_ID = '0x539';
-const DEFAULT_RPC_URL = 'http://127.0.0.1:8545';
 
 const toHexChainId = (chainId: string) => {
   const normalized = chainId.toLowerCase();
@@ -231,9 +228,9 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
 
 export const test = base.extend<Fixtures>({
   context: async ({ context }, use) => {
-    const account = (process.env.MOCK_WALLET_ACCOUNT || DEFAULT_ACCOUNT).toLowerCase();
-    const chainId = toHexChainId(process.env.MOCK_WALLET_CHAIN_ID || DEFAULT_CHAIN_ID);
-    const rpcUrl = process.env.MOCK_WALLET_RPC_URL || process.env.HARDHAT_RPC_URL || DEFAULT_RPC_URL;
+    const account = e2eConfig.mockWalletAccount;
+    const chainId = toHexChainId(e2eConfig.mockWalletChainId);
+    const rpcUrl = e2eConfig.mockWalletRpcUrl;
 
     await context.addInitScript(installHardhatBackedWalletMock, {
       account,
@@ -244,9 +241,9 @@ export const test = base.extend<Fixtures>({
     await use(context);
   },
   hardhatWallet: async ({}, use) => {
-    const account = (process.env.MOCK_WALLET_ACCOUNT || DEFAULT_ACCOUNT).toLowerCase();
-    const chainId = toHexChainId(process.env.MOCK_WALLET_CHAIN_ID || DEFAULT_CHAIN_ID);
-    const rpcUrl = process.env.MOCK_WALLET_RPC_URL || process.env.HARDHAT_RPC_URL || DEFAULT_RPC_URL;
+    const account = e2eConfig.mockWalletAccount;
+    const chainId = toHexChainId(e2eConfig.mockWalletChainId);
+    const rpcUrl = e2eConfig.mockWalletRpcUrl;
     await use({
       account,
       chainId,
