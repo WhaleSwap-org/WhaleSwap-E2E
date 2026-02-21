@@ -95,7 +95,7 @@ npm run test:e2e:headless
 
 ## Structure
 
-- `test/wallet-setup/basic.setup.ts`: Synpress wallet bootstrap (seed import + local chain add)
+- `tests/wallet-setup/basic.setup.ts`: Synpress wallet bootstrap (seed import + local chain add)
 - `tests/fixtures/testWithMetaMask.ts`: Shared Playwright test fixture with MetaMask
 - `tests/specs/*.spec.ts`: E2E test cases
 

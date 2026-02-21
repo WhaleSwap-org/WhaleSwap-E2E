@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { defineWalletSetup } from '@synthetixio/synpress-cache';
-import { MetaMask, getExtensionId } from '@synthetixio/synpress/playwright';
+import { MetaMask, getExtensionId } from '@synthetixio/synpress-metamask/playwright';
 
 const walletPassword = process.env.METAMASK_WALLET_PASSWORD || 'whaleswap-local-pass-123';
 const seedPhrase = process.env.METAMASK_SEED_PHRASE || 'test test test test test test test test test test test junk';
