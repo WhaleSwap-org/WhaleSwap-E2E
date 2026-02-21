@@ -1,12 +1,11 @@
 # WhaleSwap E2E
 
-Playwright + Synpress end-to-end tests for WhaleSwap with real MetaMask extension automation.
+Playwright end-to-end tests for WhaleSwap using a mocked `window.ethereum` provider that forwards RPC calls to local Hardhat.
 
 ## Scope
 
-- Wallet connection flow with MetaMask extension
-- Local Hardhat chain test coverage for WhaleSwap UI
-- Reusable wallet setup cache for fast reruns
+- Wallet connection flow without MetaMask extension automation
+- Local Hardhat-backed RPC behavior for realistic contract reads/writes
 
 ## Prerequisites
 
@@ -32,9 +31,10 @@ cp .env.example .env
 Key vars:
 
 - `BASE_URL` (default: `http://127.0.0.1:8080`)
-- `METAMASK_SEED_PHRASE` (test-only wallet)
-- `METAMASK_WALLET_PASSWORD`
 - `CHAIN_QUERY` (default: `local`)
+- `MOCK_WALLET_RPC_URL` (default: `http://127.0.0.1:8545`)
+- `MOCK_WALLET_CHAIN_ID` (default: `0x539`)
+- `MOCK_WALLET_ACCOUNT` (default: Hardhat account #1 / maker `0x7099...79c8`)
 
 ## Local System Under Test Startup
 
@@ -61,21 +61,7 @@ cd /Users/erebus/Documents/code/liberdus/whaleswap-ui
 npm start
 ```
 
-## Build Wallet Cache
-
-Run once (or when wallet setup changes):
-
-```bash
-npm run cache:wallet
-```
-
-Headless cache build:
-
-```bash
-npm run cache:wallet:headless
-```
-
-## Run Tests
+## Run Playwright Tests
 
 ```bash
 npm run test:e2e
@@ -95,11 +81,10 @@ npm run test:e2e:headless
 
 ## Structure
 
-- `tests/wallet-setup/basic.setup.ts`: Synpress wallet bootstrap (seed import + local chain add)
-- `tests/fixtures/testWithMetaMask.ts`: Shared Playwright test fixture with MetaMask
+- `tests/fixtures/testWithMockWallet.ts`: Shared Playwright fixture injecting a Hardhat-backed EIP-1193 provider
 - `tests/specs/*.spec.ts`: E2E test cases
 
 ## Notes
 
-- Use only throwaway/dev seed phrases in `.env`.
+- Wallet UI is mocked, but RPC is forwarded to Hardhat for chain-backed behavior.
 - `local` chain option is expected to appear only on localhost hosts by UI design.

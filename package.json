@@ -2,11 +2,9 @@
   "name": "whaleswap-e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "End-to-end tests for WhaleSwap UI using Playwright + Synpress (MetaMask)",
+  "description": "End-to-end tests for WhaleSwap UI using Playwright with a Hardhat-backed mock wallet",
   "type": "module",
   "scripts": {
-    "cache:wallet": "synpress tests/wallet-setup",
-    "cache:wallet:headless": "HEADLESS=true synpress tests/wallet-setup",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:headless": "HEADLESS=true playwright test",
@@ -14,9 +12,6 @@
   },
   "devDependencies": {
     "@playwright/test": "1.48.2",
-    "@synthetixio/synpress": "^4.1.2",
-    "@synthetixio/synpress-cache": "^0.0.14",
-    "@synthetixio/synpress-metamask": "^0.0.14",
     "@types/node": "^25.3.0",
     "dotenv": "^16.6.1",
     "typescript": "^5.9.3"
