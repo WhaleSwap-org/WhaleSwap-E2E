@@ -99,6 +99,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            whaleswap-contract/package-lock.json
+            whaleswap-ui/package-lock.json
+            whaleswap-e2e/package-lock.json
 
       - name: Install dependencies (contract/ui/e2e)
         run: |
@@ -106,7 +111,23 @@ jobs:
           npm ci --prefix whaleswap-ui
           npm ci --prefix whaleswap-e2e
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('whaleswap-e2e/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright Chromium
+        id: playwright-install
+        working-directory: whaleswap-e2e
+        continue-on-error: true
+        run: npx playwright install chromium
+
+      - name: Install Playwright Chromium (with deps fallback)
+        if: steps.playwright-install.outcome == 'failure'
         working-directory: whaleswap-e2e
         run: npx playwright install --with-deps chromium
 
