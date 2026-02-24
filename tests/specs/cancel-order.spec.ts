@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/testWithMockWallet';
 import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
-import { ensureAllowance, readClaimable, readNextOrderId } from '../helpers/hardhatChain';
+import { ensureAllowance, readBalance, readClaimable, readNextOrderId } from '../helpers/hardhatChain';
 
 const chainQuery = e2eConfig.chainQuery;
 
@@ -17,6 +17,22 @@ const BUY_AMOUNT = 3n * 10n ** 18n;
 const ORDER_FEE_AMOUNT = 1n * 10n ** 18n;
 
 const shortAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+const formatClaimAmount = (amount: bigint, decimals = 18) => {
+  const base = 10n ** BigInt(decimals);
+  const whole = amount / base;
+  const fraction = amount % base;
+  const wholeFormatted = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  if (fraction === 0n) {
+    return wholeFormatted;
+  }
+
+  let fractionFormatted = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+  fractionFormatted = fractionFormatted.slice(0, 8);
+
+  return fractionFormatted ? `${wholeFormatted}.${fractionFormatted}` : wholeFormatted;
+};
 
 const selectTokenBySymbol = async (
   page: Page,
@@ -46,7 +62,7 @@ const selectTokenBySymbol = async (
 };
 
 test.describe('WhaleSwap cancel order flow', () => {
-  test('maker cancels order and receives claimable credit', async ({ page }) => {
+  test('maker cancels order, sees matching claim UI amount, and can claim', async ({ page }) => {
     test.setTimeout(180_000);
 
     await ensureAllowance(LTKA, MAKER, whaleSwapAddress, SELL_AMOUNT);
@@ -115,5 +131,43 @@ test.describe('WhaleSwap cancel order flow', () => {
     await expect(viewOrderRow).toBeVisible({ timeout: 20_000 });
     await expect(viewOrderRow.locator('td.order-status')).toContainText('Canceled');
     await expect(page.locator(`#view-orders button.fill-button[data-order-id="${createdOrderId}"]`)).toHaveCount(0);
+
+    const makerClaimableBeforeWithdraw = await readClaimable(whaleSwapAddress, MAKER, LTKA);
+    const makerBalanceBeforeWithdraw = await readBalance(LTKA, MAKER);
+    expect(makerClaimableBeforeWithdraw).toBeGreaterThan(0n);
+
+    await page.reload();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+
+    const claimTabButton = page.locator('.tab-button[data-tab="claim"]');
+    await expect(claimTabButton).toBeVisible({ timeout: 20_000 });
+    await claimTabButton.click();
+
+    const claimRow = page
+      .locator('.claim-row', { has: page.locator('.claim-token-symbol:text-is("LTKA")') })
+      .first();
+    await expect(claimRow).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(async () => ((await claimRow.locator('.claim-amount').textContent()) || '').trim(), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(formatClaimAmount(makerClaimableBeforeWithdraw));
+
+    await claimRow.locator('.claim-action-button').click();
+
+    await expect
+      .poll(async () => await readClaimable(whaleSwapAddress, MAKER, LTKA), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(0n);
+
+    await expect
+      .poll(async () => await readBalance(LTKA, MAKER), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(makerBalanceBeforeWithdraw + makerClaimableBeforeWithdraw);
   });
 });

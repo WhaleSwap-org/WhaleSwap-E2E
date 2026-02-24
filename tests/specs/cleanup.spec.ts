@@ -6,6 +6,7 @@ import {
   ensureAllowance,
   increaseTime,
   readAccumulatedFeesByToken,
+  readBalance,
   readClaimable,
   readFirstOrderId,
   readGracePeriod,
@@ -29,6 +30,22 @@ const ORDER_FEE_AMOUNT = 1n * 10n ** 18n;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 const shortAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+const formatClaimAmount = (amount: bigint, decimals = 18) => {
+  const base = 10n ** BigInt(decimals);
+  const whole = amount / base;
+  const fraction = amount % base;
+  const wholeFormatted = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  if (fraction === 0n) {
+    return wholeFormatted;
+  }
+
+  let fractionFormatted = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+  fractionFormatted = fractionFormatted.slice(0, 8);
+
+  return fractionFormatted ? `${wholeFormatted}.${fractionFormatted}` : wholeFormatted;
+};
 
 const selectTokenBySymbol = async (
   page: Page,
@@ -58,7 +75,7 @@ const selectTokenBySymbol = async (
 };
 
 test.describe('WhaleSwap cleanup flow', () => {
-  test('cleanup credits maker principal and cleaner fee, then removes order', async ({ page, hardhatWallet }) => {
+  test('cleanup credits claimables, matches claim UI, and cleaner can claim fee', async ({ page, hardhatWallet }) => {
     test.setTimeout(180_000);
 
     await ensureAllowance(LTKA, MAKER, whaleSwapAddress, SELL_AMOUNT);
@@ -182,5 +199,44 @@ test.describe('WhaleSwap cleanup flow', () => {
         }
       )
       .toBe(true);
+
+    const cleanerClaimableBeforeWithdraw = await readClaimable(whaleSwapAddress, CLEANER, targetOrder.feeToken);
+    const cleanerBalanceBeforeWithdraw = await readBalance(targetOrder.feeToken, CLEANER);
+    expect(cleanerClaimableBeforeWithdraw).toBeGreaterThan(0n);
+
+    await page.reload();
+    await hardhatWallet.connect(page);
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(CLEANER), { timeout: 15_000 });
+
+    const claimTabButton = page.locator('.tab-button[data-tab="claim"]');
+    await expect(claimTabButton).toBeVisible({ timeout: 20_000 });
+    await claimTabButton.click();
+
+    const claimRow = page
+      .locator('.claim-row', { has: page.locator('.claim-token-symbol:text-is("LFT")') })
+      .first();
+    await expect(claimRow).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(async () => ((await claimRow.locator('.claim-amount').textContent()) || '').trim(), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(formatClaimAmount(cleanerClaimableBeforeWithdraw));
+
+    await claimRow.locator('.claim-action-button').click();
+
+    await expect
+      .poll(async () => await readClaimable(whaleSwapAddress, CLEANER, targetOrder.feeToken), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(0n);
+
+    await expect
+      .poll(async () => await readBalance(targetOrder.feeToken, CLEANER), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(cleanerBalanceBeforeWithdraw + cleanerClaimableBeforeWithdraw);
   });
 });
