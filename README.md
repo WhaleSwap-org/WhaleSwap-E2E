@@ -20,15 +20,15 @@ Playwright end-to-end tests for WhaleSwap using a mocked `window.ethereum` provi
 Install dependencies in all three repos:
 
 ```bash
-cd /Users/erebus/Documents/code/liberdus/whaleswap-contract && npm install
-cd /Users/erebus/Documents/code/liberdus/whaleswap-ui && npm install
-cd /Users/erebus/Documents/code/liberdus/whaleswap-e2e && npm install
+cd whaleswap-contract && npm install
+cd ../whaleswap-ui && npm install
+cd ../whaleswap-e2e && npm install
 ```
 
 Install Playwright browser in e2e:
 
 ```bash
-cd /Users/erebus/Documents/code/liberdus/whaleswap-e2e
+cd whaleswap-e2e
 npx playwright install chromium
 ```
 
@@ -89,21 +89,21 @@ Start these in separate terminals:
 1. Hardhat node
 
 ```bash
-cd /Users/erebus/Documents/code/liberdus/whaleswap-contract
+cd whaleswap-contract
 npm run node
 ```
 
 2. Local contract deploy
 
 ```bash
-cd /Users/erebus/Documents/code/liberdus/whaleswap-contract
+cd whaleswap-contract
 npm run deploy:local
 ```
 
 3. UI server
 
 ```bash
-cd /Users/erebus/Documents/code/liberdus/whaleswap-ui
+cd whaleswap-ui
 npm run start -- -p 5500 -a 127.0.0.1
 ```
 
