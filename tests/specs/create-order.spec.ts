@@ -2,31 +2,12 @@ import { test, expect } from '../fixtures/testWithMockWallet';
 import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
+import { readNextOrderId } from '../helpers/hardhatChain';
 
 const chainQuery = e2eConfig.chainQuery;
-const rpcUrl = e2eConfig.mockWalletRpcUrl;
-const nextOrderIdSelector = '0x2a58b330';
 const whaleSwapAddress = localDeployment.contracts.otcSwap;
 const LTKA = localDeployment.contracts.tokenA.toLowerCase();
 const LTKB = localDeployment.contracts.tokenB.toLowerCase();
-
-const rpcCall = async <T>(method: string, params: unknown[]): Promise<T> => {
-  const response = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params })
-  });
-  const json = (await response.json()) as { result?: T; error?: { message?: string } };
-  if (json.error) {
-    throw new Error(`RPC ${method} failed: ${json.error.message || 'unknown error'}`);
-  }
-  return json.result as T;
-};
-
-const readNextOrderId = async (): Promise<bigint> => {
-  const result = await rpcCall<string>('eth_call', [{ to: whaleSwapAddress, data: nextOrderIdSelector }, 'latest']);
-  return BigInt(result);
-};
 
 const selectTokenBySymbol = async (
   page: Page,
@@ -77,14 +58,14 @@ test.describe('WhaleSwap create-order flow', () => {
     await page.fill('#sellAmount', '1');
     await page.fill('#buyAmount', '1');
 
-    const nextOrderIdBefore = await readNextOrderId();
+    const nextOrderIdBefore = await readNextOrderId(whaleSwapAddress);
 
     const createOrderBtn = page.locator('#createOrderBtn');
     await expect(createOrderBtn).toBeEnabled({ timeout: 15_000 });
     await createOrderBtn.click();
 
     await expect
-      .poll(async () => (await readNextOrderId()) === nextOrderIdBefore + 1n, {
+      .poll(async () => (await readNextOrderId(whaleSwapAddress)) === nextOrderIdBefore + 1n, {
         timeout: 45_000,
         intervals: [500, 1_000, 2_000]
       })

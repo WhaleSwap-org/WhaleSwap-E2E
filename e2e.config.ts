@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 const DEFAULTS = {
-  BASE_URL: 'http://127.0.0.1:8080',
+  BASE_URL: 'http://127.0.0.1:5500',
   CHAIN_QUERY: 'local',
   MOCK_WALLET_RPC_URL: 'http://127.0.0.1:8545',
   MOCK_WALLET_CHAIN_ID: '0x539',
@@ -16,4 +16,3 @@ export const e2eConfig = {
   mockWalletAccount: (process.env.MOCK_WALLET_ACCOUNT || DEFAULTS.MOCK_WALLET_ACCOUNT).toLowerCase(),
   headless: process.env.HEADLESS === 'true'
 } as const;
-

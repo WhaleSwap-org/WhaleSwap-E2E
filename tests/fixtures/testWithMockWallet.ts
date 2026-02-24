@@ -1,16 +1,25 @@
 import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';
 import { e2eConfig } from '../../e2e.config';
+import { createSnapshot, revertSnapshot, rpcCall as hardhatRpcCall } from '../helpers/hardhatChain';
 
 type HardhatWallet = {
   account: string;
   chainId: string;
   rpcUrl: string;
   connect: (page: Page) => Promise<string[]>;
+  switchAccount: (page: Page, account: string) => Promise<string>;
 };
 
 type Fixtures = {
   hardhatWallet: HardhatWallet;
+  hardhatChain: {
+    rpcUrl: string;
+    rpcCall: <T>(method: string, params: unknown[]) => Promise<T>;
+    snapshot: () => Promise<string>;
+    revert: (snapshotId: string) => Promise<boolean>;
+  };
   context: BrowserContext;
+  chainSnapshot: void;
 };
 
 const toHexChainId = (chainId: string) => {
@@ -27,9 +36,11 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
 
   const globalWindow = window as Window & { ethereum?: unknown };
   const CONNECTED_STORAGE_KEY = '__whaleswap_mock_wallet_connected__';
+  const ACCOUNT_STORAGE_KEY = '__whaleswap_mock_wallet_account__';
   const listenerMap = new Map<string, Set<Listener>>();
   const knownChains = new Set([String(config.chainId).toLowerCase()]);
   let connected = localStorage.getItem(CONNECTED_STORAGE_KEY) === 'true';
+  let currentAccount = (localStorage.getItem(ACCOUNT_STORAGE_KEY) || config.account).toLowerCase();
   let currentChainId = String(config.chainId).toLowerCase();
   let nextId = 1;
 
@@ -85,7 +96,7 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
     };
 
     get selectedAddress() {
-      return connected ? config.account : null;
+      return connected ? currentAccount : null;
     }
 
     get chainId() {
@@ -148,12 +159,12 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
         connected = true;
         localStorage.setItem(CONNECTED_STORAGE_KEY, 'true');
         emit('connect', { chainId: currentChainId });
-        emit('accountsChanged', [config.account]);
-        return [config.account];
+        emit('accountsChanged', [currentAccount]);
+        return [currentAccount];
       }
 
       if (method === 'eth_accounts') {
-        return connected ? [config.account] : [];
+        return connected ? [currentAccount] : [];
       }
 
       if (method === 'eth_chainId') {
@@ -196,7 +207,7 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
       if (method === 'eth_sendTransaction' && params[0]) {
         const tx = params[0] as { from?: string };
         if (!tx.from) {
-          tx.from = config.account;
+          tx.from = currentAccount;
         }
       }
 
@@ -223,10 +234,44 @@ const installHardhatBackedWalletMock = (config: { account: string; chainId: stri
     value: new HardhatBackedEthereumProvider()
   });
 
+  Object.defineProperty(globalWindow, '__whaleswapMockSetAccount', {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: (account: string) => {
+      currentAccount = String(account).toLowerCase();
+      localStorage.setItem(ACCOUNT_STORAGE_KEY, currentAccount);
+      if (connected) {
+        emit('accountsChanged', [currentAccount]);
+      }
+      return currentAccount;
+    }
+  });
+
   window.dispatchEvent(new Event('ethereum#initialized'));
 };
 
 export const test = base.extend<Fixtures>({
+  chainSnapshot: [
+    async ({ hardhatChain }, use, testInfo) => {
+      const snapshotId = await hardhatChain.snapshot();
+      await use();
+      const reverted = await hardhatChain.revert(snapshotId);
+      if (!reverted) {
+        throw new Error(`Failed to revert Hardhat snapshot ${snapshotId} for test ${testInfo.title}`);
+      }
+    },
+    { auto: true }
+  ],
+  hardhatChain: async ({}, use) => {
+    const rpcUrl = e2eConfig.mockWalletRpcUrl;
+    await use({
+      rpcUrl,
+      rpcCall: <T>(method: string, params: unknown[]) => hardhatRpcCall<T>(method, params, rpcUrl),
+      snapshot: () => createSnapshot(rpcUrl),
+      revert: (snapshotId: string) => revertSnapshot(snapshotId, rpcUrl)
+    });
+  },
   context: async ({ context }, use) => {
     const account = e2eConfig.mockWalletAccount;
     const chainId = toHexChainId(e2eConfig.mockWalletChainId);
@@ -257,6 +302,16 @@ export const test = base.extend<Fixtures>({
           ).ethereum.request({
             method: 'eth_requestAccounts'
           })
+        ),
+      switchAccount: async (page, account) =>
+        page.evaluate(
+          (targetAccount) =>
+            (
+              window as unknown as Window & {
+                __whaleswapMockSetAccount: (account: string) => string;
+              }
+            ).__whaleswapMockSetAccount(targetAccount),
+          account
         )
     });
   }

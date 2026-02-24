@@ -26,7 +26,7 @@ No environment file is required for local dev. Defaults are committed in `e2e.co
 
 Optional overrides (via shell env or `.env`):
 
-- `BASE_URL` (default: `http://127.0.0.1:8080`)
+- `BASE_URL` (default: `http://127.0.0.1:5500`)
 - `CHAIN_QUERY` (default: `local`)
 - `MOCK_WALLET_RPC_URL` (default: `http://127.0.0.1:8545`)
 - `MOCK_WALLET_CHAIN_ID` (default: `0x539`)
@@ -79,10 +79,12 @@ npm run test:e2e:headless
 
 ## Structure
 
-- `tests/fixtures/testWithMockWallet.ts`: Shared Playwright fixture injecting a Hardhat-backed EIP-1193 provider
+- `tests/fixtures/testWithMockWallet.ts`: Shared Playwright fixture injecting a Hardhat-backed EIP-1193 provider and auto snapshot/revert (`evm_snapshot` + `evm_revert`) per test
+- `tests/helpers/hardhatChain.ts`: Shared chain helpers (RPC, balances, allowances, next-order-id, receipts, snapshots)
 - `tests/specs/*.spec.ts`: E2E test cases
 
 ## Notes
 
 - Wallet UI is mocked, but RPC is forwarded to Hardhat for chain-backed behavior.
 - `local` chain option is expected to appear only on localhost hosts by UI design.
+- Test workers are set to `1` because all tests target the same local Hardhat chain state.
