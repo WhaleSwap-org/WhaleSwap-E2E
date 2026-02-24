@@ -9,14 +9,26 @@ Playwright end-to-end tests for WhaleSwap using a mocked `window.ethereum` provi
 
 ## Prerequisites
 
-- Node.js 20+ recommended
-- Local WhaleSwap stack running (contract + UI)
+- `whaleswap-contract`, `whaleswap-ui`, and `whaleswap-e2e` repos available as sibling directories
+- Node.js 20 or 22 recommended (Hardhat currently warns on Node 23)
+- `npm` available
+- Ports `8545` (Hardhat) and `5500` (UI) available
 - Chromium available for Playwright
 
 ## Install
 
+Install dependencies in all three repos:
+
 ```bash
-npm install
+cd /Users/erebus/Documents/code/liberdus/whaleswap-contract && npm install
+cd /Users/erebus/Documents/code/liberdus/whaleswap-ui && npm install
+cd /Users/erebus/Documents/code/liberdus/whaleswap-e2e && npm install
+```
+
+Install Playwright browser in e2e:
+
+```bash
+cd /Users/erebus/Documents/code/liberdus/whaleswap-e2e
 npx playwright install chromium
 ```
 
@@ -34,7 +46,43 @@ Optional overrides (via shell env or `.env`):
 
 If you want a local override file, copy `.env.example` to `.env`.
 
-## Local System Under Test Startup
+## One-command Local Run
+
+Run end-to-end setup + tests from `whaleswap-e2e`:
+
+```bash
+npm run test:e2e:local
+```
+
+This script:
+
+1. Starts Hardhat on `127.0.0.1:8545`
+2. Runs `deploy:local` in `whaleswap-contract`
+3. Starts UI on `127.0.0.1:5500`
+4. Runs Playwright tests (headless by default)
+5. Stops Hardhat/UI on exit
+
+If Hardhat or UI are already running on those ports, the script reuses them by default.
+
+Script path:
+
+- `scripts/run-local-e2e.sh`
+
+Logs are written to:
+
+- `.logs/local-e2e`
+
+Pass a specific spec or Playwright args:
+
+```bash
+npm run test:e2e:local -- tests/specs/create-order.spec.ts --project=chromium
+```
+
+Optional toggle:
+
+- `REUSE_EXISTING_SERVICES=false` to fail instead of reusing already-running Hardhat/UI
+
+## Manual Local Startup (Alternative)
 
 Start these in separate terminals:
 
@@ -56,7 +104,7 @@ npm run deploy:local
 
 ```bash
 cd /Users/erebus/Documents/code/liberdus/whaleswap-ui
-npm start
+npm run start -- -p 5500 -a 127.0.0.1
 ```
 
 ## Run Playwright Tests
