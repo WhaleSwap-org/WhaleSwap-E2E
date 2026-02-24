@@ -138,11 +138,6 @@ Run it from GitHub:
 3. Click **Run workflow**
 4. Optionally provide `playwright_args` (for a specific spec/filter)
 
-If contract/UI repositories are private, create `CROSS_REPO_TOKEN` with read access to:
-
-- `WhaleSwap-org/WhaleSwap-Contract`
-- `WhaleSwap-org/WhaleSwap-UI`
-
 ## Structure
 
 - `tests/fixtures/testWithMockWallet.ts`: Shared Playwright fixture injecting a Hardhat-backed EIP-1193 provider and auto snapshot/revert (`evm_snapshot` + `evm_revert`) per test

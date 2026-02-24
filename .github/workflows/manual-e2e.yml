@@ -31,14 +31,12 @@ jobs:
         with:
           repository: WhaleSwap-org/WhaleSwap-Contract
           path: whaleswap-contract
-          token: ${{ secrets.CROSS_REPO_TOKEN != '' && secrets.CROSS_REPO_TOKEN || github.token }}
 
       - name: Checkout UI repo
         uses: actions/checkout@v4
         with:
           repository: WhaleSwap-org/WhaleSwap-UI
           path: whaleswap-ui
-          token: ${{ secrets.CROSS_REPO_TOKEN != '' && secrets.CROSS_REPO_TOKEN || github.token }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
