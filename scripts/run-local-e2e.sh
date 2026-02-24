@@ -87,7 +87,7 @@ is_hardhat_ready() {
   curl -sS \
     -H 'content-type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
-    "${HARDHAT_RPC_URL}" | rg -q '"result"'
+    "${HARDHAT_RPC_URL}" | grep -q '"result"'
 }
 
 is_ui_ready() {
@@ -115,7 +115,6 @@ wait_for() {
 require_cmd npm
 require_cmd npx
 require_cmd curl
-require_cmd rg
 
 assert_repo_dir "${CONTRACT_DIR}" "Contract repo"
 assert_repo_dir "${UI_DIR}" "UI repo"
