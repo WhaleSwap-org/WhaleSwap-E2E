@@ -136,7 +136,12 @@ Run it from GitHub:
 1. Open **Actions** in `WhaleSwap-E2E`
 2. Select **Manual E2E**
 3. Click **Run workflow**
-4. Optionally provide `playwright_args` (for a specific spec/filter)
+4. Set refs as needed (`e2e_ref`, `contract_ref`, `ui_repository`, `ui_ref`)
+5. Optionally provide `playwright_args` (for a specific spec/filter)
+
+This workflow is also reusable via `workflow_call`, and is consumed by the UI repo workflow:
+
+- `WhaleSwap-UI/.github/workflows/e2e-pr.yml`
 
 ## Structure
 

@@ -3,13 +3,66 @@ name: Manual E2E
 on:
   workflow_dispatch:
     inputs:
+      e2e_ref:
+        description: "Ref in WhaleSwap-E2E to run (branch, tag, or SHA)"
+        required: true
+        default: "main"
+        type: string
+      contract_ref:
+        description: "Ref in WhaleSwap-Contract to test against"
+        required: true
+        default: "main"
+        type: string
+      ui_repository:
+        description: "UI repository (owner/repo)"
+        required: true
+        default: "WhaleSwap-org/WhaleSwap-UI"
+        type: string
+      ui_ref:
+        description: "Ref in UI repository to test (branch, tag, or SHA)"
+        required: true
+        default: "main"
+        type: string
       playwright_args:
         description: "Optional Playwright args (example: tests/specs/create-order.spec.ts --project=chromium)"
         required: false
+        default: ""
         type: string
       headless:
         description: "Run browser headless"
         required: true
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      e2e_ref:
+        description: "Ref in WhaleSwap-E2E to run (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+      contract_ref:
+        description: "Ref in WhaleSwap-Contract to test against"
+        required: false
+        default: "main"
+        type: string
+      ui_repository:
+        description: "UI repository (owner/repo)"
+        required: false
+        default: "WhaleSwap-org/WhaleSwap-UI"
+        type: string
+      ui_ref:
+        description: "Ref in UI repository to test (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+      playwright_args:
+        description: "Optional Playwright args"
+        required: false
+        default: ""
+        type: string
+      headless:
+        description: "Run browser headless"
+        required: false
         default: true
         type: boolean
 
@@ -24,18 +77,22 @@ jobs:
       - name: Checkout E2E repo
         uses: actions/checkout@v4
         with:
+          repository: WhaleSwap-org/WhaleSwap-E2E
+          ref: ${{ inputs.e2e_ref }}
           path: whaleswap-e2e
 
       - name: Checkout Contract repo
         uses: actions/checkout@v4
         with:
           repository: WhaleSwap-org/WhaleSwap-Contract
+          ref: ${{ inputs.contract_ref }}
           path: whaleswap-contract
 
       - name: Checkout UI repo
         uses: actions/checkout@v4
         with:
-          repository: WhaleSwap-org/WhaleSwap-UI
+          repository: ${{ inputs.ui_repository }}
+          ref: ${{ inputs.ui_ref }}
           path: whaleswap-ui
 
       - name: Setup Node
@@ -61,9 +118,13 @@ jobs:
           HEADLESS: ${{ inputs.headless }}
           REUSE_EXISTING_SERVICES: "false"
           LOG_DIR: ${{ github.workspace }}/whaleswap-e2e/.logs/local-e2e
+          PLAYWRIGHT_ARGS: ${{ inputs.playwright_args }}
         run: |
-          if [ -n "${{ inputs.playwright_args }}" ]; then
-            bash ./scripts/run-local-e2e.sh ${{ inputs.playwright_args }}
+          if [ -n "${PLAYWRIGHT_ARGS}" ]; then
+            # Split on spaces for standard CLI args.
+            # shellcheck disable=SC2206
+            args=(${PLAYWRIGHT_ARGS})
+            bash ./scripts/run-local-e2e.sh "${args[@]}"
           else
             bash ./scripts/run-local-e2e.sh
           fi
