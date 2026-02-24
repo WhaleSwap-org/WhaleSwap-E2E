@@ -1,0 +1,95 @@
+name: Manual E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      playwright_args:
+        description: "Optional Playwright args (example: tests/specs/create-order.spec.ts --project=chromium)"
+        required: false
+        type: string
+      headless:
+        description: "Run browser headless"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout E2E repo
+        uses: actions/checkout@v4
+        with:
+          path: whaleswap-e2e
+
+      - name: Checkout Contract repo
+        uses: actions/checkout@v4
+        with:
+          repository: WhaleSwap-org/WhaleSwap-Contract
+          path: whaleswap-contract
+          token: ${{ secrets.CROSS_REPO_TOKEN != '' && secrets.CROSS_REPO_TOKEN || github.token }}
+
+      - name: Checkout UI repo
+        uses: actions/checkout@v4
+        with:
+          repository: WhaleSwap-org/WhaleSwap-UI
+          path: whaleswap-ui
+          token: ${{ secrets.CROSS_REPO_TOKEN != '' && secrets.CROSS_REPO_TOKEN || github.token }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (contract/ui/e2e)
+        run: |
+          npm ci --prefix whaleswap-contract
+          npm ci --prefix whaleswap-ui
+          npm ci --prefix whaleswap-e2e
+
+      - name: Install Playwright Chromium
+        working-directory: whaleswap-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        working-directory: whaleswap-e2e
+        env:
+          CONTRACT_DIR: ${{ github.workspace }}/whaleswap-contract
+          UI_DIR: ${{ github.workspace }}/whaleswap-ui
+          HEADLESS: ${{ inputs.headless }}
+          REUSE_EXISTING_SERVICES: "false"
+          LOG_DIR: ${{ github.workspace }}/whaleswap-e2e/.logs/local-e2e
+        run: |
+          if [ -n "${{ inputs.playwright_args }}" ]; then
+            bash ./scripts/run-local-e2e.sh ${{ inputs.playwright_args }}
+          else
+            bash ./scripts/run-local-e2e.sh
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: whaleswap-e2e/playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: whaleswap-e2e/test-results
+          if-no-files-found: ignore
+
+      - name: Upload local run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-e2e-logs
+          path: whaleswap-e2e/.logs/local-e2e
+          if-no-files-found: ignore
