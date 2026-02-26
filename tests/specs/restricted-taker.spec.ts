@@ -146,4 +146,85 @@ test.describe('WhaleSwap restricted taker flow', () => {
       })
       .toBe(true);
   });
+
+  test('authorized taker can fill from invited orders tab', async ({ page, hardhatWallet }) => {
+    test.setTimeout(180_000);
+
+    await ensureAllowance(LTKA, MAKER, whaleSwapAddress, SELL_AMOUNT);
+    await ensureAllowance(FEE_TOKEN, MAKER, whaleSwapAddress, ORDER_FEE_AMOUNT);
+    await ensureAllowance(LTKB, AUTHORIZED_TAKER, whaleSwapAddress, BUY_AMOUNT);
+
+    await page.goto(`/?chain=${chainQuery}`);
+    await page.locator('#walletConnect').click();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+    await page.reload();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+
+    await page.locator('.tab-button[data-tab="create-order"]').click();
+    await expect(page.locator('#sellTokenSelector')).toBeVisible();
+
+    await selectTokenBySymbol(page, 'sell', 'LTKA', LTKA);
+    await selectTokenBySymbol(page, 'buy', 'LTKB', LTKB);
+    await page.fill('#sellAmount', '2');
+    await page.fill('#buyAmount', '3');
+
+    await page.locator('.taker-toggle').click();
+    await expect(page.locator('#takerAddress')).toBeVisible({ timeout: 15_000 });
+    await page.fill('#takerAddress', AUTHORIZED_TAKER);
+
+    const nextOrderIdBefore = await readNextOrderId(whaleSwapAddress);
+    const createdOrderId = nextOrderIdBefore.toString();
+
+    const createOrderBtn = page.locator('#createOrderBtn');
+    await expect(createOrderBtn).toBeEnabled({ timeout: 15_000 });
+    await createOrderBtn.click();
+
+    await expect
+      .poll(async () => (await readNextOrderId(whaleSwapAddress)) === nextOrderIdBefore + 1n, {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(true);
+
+    const makerLtkbBeforeFill = await readBalance(LTKB, MAKER);
+    const takerLtkaBeforeFill = await readBalance(LTKA, AUTHORIZED_TAKER);
+    const takerLtkbBeforeFill = await readBalance(LTKB, AUTHORIZED_TAKER);
+
+    await hardhatWallet.switchAccount(page, AUTHORIZED_TAKER);
+    await page.reload();
+    await hardhatWallet.connect(page);
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(AUTHORIZED_TAKER), { timeout: 15_000 });
+
+    await page.locator('.tab-button[data-tab="taker-orders"]').click();
+    const invitedRow = page.locator(`#taker-orders tbody tr[data-order-id="${createdOrderId}"]`);
+    await expect(invitedRow).toBeVisible({ timeout: 20_000 });
+
+    const invitedFillButton = page.locator(`#taker-orders button.fill-button[data-order-id="${createdOrderId}"]`);
+    await expect(invitedFillButton).toBeVisible({ timeout: 20_000 });
+    await invitedFillButton.click();
+
+    await expect
+      .poll(async () => page.locator(`#taker-orders button.fill-button[data-order-id="${createdOrderId}"]`).count(), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => {
+        const makerLtkbAfterFill = await readBalance(LTKB, MAKER);
+        const takerLtkaAfterFill = await readBalance(LTKA, AUTHORIZED_TAKER);
+        const takerLtkbAfterFill = await readBalance(LTKB, AUTHORIZED_TAKER);
+
+        return (
+          makerLtkbAfterFill === makerLtkbBeforeFill + BUY_AMOUNT &&
+          takerLtkaAfterFill === takerLtkaBeforeFill + SELL_AMOUNT &&
+          takerLtkbAfterFill === takerLtkbBeforeFill - BUY_AMOUNT
+        );
+      }, {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(true);
+  });
 });
