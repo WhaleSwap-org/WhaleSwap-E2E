@@ -34,13 +34,21 @@ const setAdminTokenUpdateRow = async (page: Page, action: 'add' | 'delete', toke
   }
 
   await expect(addressInput).toHaveAttribute('readonly', 'readonly', { timeout: 10_000 });
-  await addressInput.evaluate((node, value) => {
-    const input = node as HTMLInputElement;
-    input.value = value as string;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, tokenAddress);
+  await addressInput.click();
 
+  const deleteTokenModal = page.locator('#admin-delete-token-modal');
+  await expect(deleteTokenModal).toHaveClass(/show/, { timeout: 20_000 });
+  await expect(deleteTokenModal.locator('#admin-delete-token-list')).toBeVisible({ timeout: 20_000 });
+
+  const deleteTokenRow = deleteTokenModal
+    .locator('#admin-delete-token-list .token-item', {
+      has: page.locator('.admin-token-address-inline', { hasText: new RegExp(tokenAddress, 'i') })
+    })
+    .first();
+  await expect(deleteTokenRow).toBeVisible({ timeout: 20_000 });
+  await deleteTokenRow.click();
+
+  await expect(deleteTokenModal).not.toHaveClass(/show/, { timeout: 10_000 });
   await expect
     .poll(async () => (await addressInput.inputValue()).toLowerCase(), {
       timeout: 20_000,
