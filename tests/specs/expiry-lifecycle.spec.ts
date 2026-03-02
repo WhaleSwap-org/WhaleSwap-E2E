@@ -19,6 +19,19 @@ const ORDER_FEE_AMOUNT = 1n * 10n ** 18n;
 
 const shortAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
+const waitForAppReady = async (page: Page) => {
+  const loader = page.locator('#app-bootstrap-loader');
+  if ((await loader.count()) > 0) {
+    await expect(loader).toBeHidden({ timeout: 30_000 });
+  }
+};
+
+const readCleanupReadyCount = async (page: Page): Promise<number> => {
+  const text = (await page.locator('#cleanup-ready').textContent())?.trim() || '';
+  const value = Number.parseInt(text, 10);
+  return Number.isFinite(value) ? value : -1;
+};
+
 const selectTokenBySymbol = async (
   page: Page,
   type: 'sell' | 'buy',
@@ -57,9 +70,11 @@ test.describe('WhaleSwap expiry and grace lifecycle', () => {
     const gracePeriod = await readGracePeriod(whaleSwapAddress);
 
     await page.goto(`/?chain=${chainQuery}`);
+    await waitForAppReady(page);
     await page.locator('#walletConnect').click();
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
     await page.reload();
+    await waitForAppReady(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
 
     await page.locator('.tab-button[data-tab="create-order"]').click();
@@ -92,6 +107,7 @@ test.describe('WhaleSwap expiry and grace lifecycle', () => {
 
     await increaseTime(orderExpiry + 5n);
     await page.reload();
+    await waitForAppReady(page);
     await hardhatWallet.connect(page);
     await page.locator('.tab-button[data-tab="view-orders"]').click();
 
@@ -105,21 +121,27 @@ test.describe('WhaleSwap expiry and grace lifecycle', () => {
     await expect(expiredRow.locator('td.order-status')).toContainText('Expired');
     await expect(page.locator(`#view-orders button.fill-button[data-order-id="${createdOrderId}"]`)).toHaveCount(0);
 
+    await page.locator('.tab-button[data-tab="cleanup-orders"]').click();
+    await expect
+      .poll(async () => await readCleanupReadyCount(page), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBeGreaterThanOrEqual(0);
+    const cleanupReadyBeforeGrace = await readCleanupReadyCount(page);
+
     await increaseTime(gracePeriod + 5n);
     await page.reload();
+    await waitForAppReady(page);
     await hardhatWallet.connect(page);
     await page.locator('.tab-button[data-tab="cleanup-orders"]').click();
 
     await expect
-      .poll(
-        async () => {
-          const text = (await page.locator('#cleanup-ready').textContent())?.trim() || '';
-          const value = Number.parseInt(text, 10);
-          return Number.isFinite(value) ? value : -1;
-        },
-        { timeout: 20_000, intervals: [500, 1_000, 2_000] }
-      )
-      .toBeGreaterThanOrEqual(1);
+      .poll(async () => await readCleanupReadyCount(page), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBeGreaterThanOrEqual(cleanupReadyBeforeGrace + 1);
 
     await expect(page.locator('#cleanup-button')).toBeEnabled();
   });
