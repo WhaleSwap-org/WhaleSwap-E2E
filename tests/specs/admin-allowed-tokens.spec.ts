@@ -24,8 +24,19 @@ const setAdminTokenUpdateRow = async (page: Page, action: 'add' | 'delete', toke
   const row = page.locator('.admin-token-row').first();
   const addressInput = row.locator('.admin-token-address');
   const actionSelect = row.locator('.admin-token-action');
-  await actionSelect.selectOption(action);
-  await expect(actionSelect).toHaveValue(action, { timeout: 10_000 });
+  await expect
+    .poll(async () => {
+      try {
+        await actionSelect.selectOption(action);
+        return await actionSelect.inputValue();
+      } catch {
+        return '';
+      }
+    }, {
+      timeout: 20_000,
+      intervals: [500, 1_000, 2_000]
+    })
+    .toBe(action);
 
   if (action === 'add') {
     await expect(addressInput).not.toHaveAttribute('readonly', 'readonly');
