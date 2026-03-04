@@ -89,6 +89,57 @@ const readBuyTokenSymbols = async (page: Page): Promise<string[]> => {
 };
 
 test.describe('WhaleSwap admin allowed tokens', () => {
+  test('owner sees create order selectors reflect allowed-token delete without page reload', async ({ page, hardhatWallet }) => {
+    test.setTimeout(180_000);
+
+    await page.goto(`/?chain=${chainQuery}`);
+    await hardhatWallet.switchAccount(page, OWNER);
+    await page.locator('#walletConnect').click();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(OWNER), { timeout: 15_000 });
+
+    await page.locator('.tab-button[data-tab="create-order"]').click();
+    await expect(page.locator('#buyTokenSelector')).toBeVisible({ timeout: 20_000 });
+
+    await expect
+      .poll(async () => {
+        const symbols = await readBuyTokenSymbols(page);
+        return symbols.includes('LTKB');
+      }, {
+        timeout: 30_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(true);
+
+    const adminTabButton = page.locator('.tab-button[data-tab="admin"]');
+    await expect(adminTabButton).toBeVisible({ timeout: 20_000 });
+    await adminTabButton.click();
+    await expect(page.locator('#admin-update-tokens')).toBeVisible();
+
+    await setAdminTokenUpdateRow(page, 'delete', TOKEN_TO_TOGGLE);
+    await expectAdminTokenRowAddress(page, TOKEN_TO_TOGGLE);
+    await page.locator('#admin-update-tokens').click();
+
+    await expect
+      .poll(async () => (await readIsAllowedToken(whaleSwapAddress, TOKEN_TO_TOGGLE)) === false, {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(true);
+
+    await page.locator('.tab-button[data-tab="create-order"]').click();
+    await expect(page.locator('#buyTokenSelector')).toBeVisible({ timeout: 20_000 });
+
+    await expect
+      .poll(async () => {
+        const symbols = await readBuyTokenSymbols(page);
+        return symbols.includes('LTKB');
+      }, {
+        timeout: 30_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(false);
+  });
+
   test('owner can remove and re-add an allowed token reflected in create order selectors', async ({ page, hardhatWallet }) => {
     test.setTimeout(180_000);
 
