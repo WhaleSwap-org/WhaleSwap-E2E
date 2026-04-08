@@ -47,6 +47,34 @@ const formatClaimAmount = (amount: bigint, decimals = 18) => {
   return fractionFormatted ? `${wholeFormatted}.${fractionFormatted}` : wholeFormatted;
 };
 
+const readCleanupReadyCount = async (page: Page): Promise<number> => {
+  const text = (await page.locator('#cleanup-ready').textContent())?.trim() || '';
+  const value = Number.parseInt(text, 10);
+  return Number.isFinite(value) ? value : -1;
+};
+
+const readCurrentChainTimestamp = async (
+  rpcCall: <T>(method: string, params: unknown[]) => Promise<T>
+): Promise<bigint> => {
+  const latestBlock = await rpcCall<{ timestamp: string }>('eth_getBlockByNumber', ['latest', false]);
+  return BigInt(latestBlock.timestamp);
+};
+
+const countCleanupEligibleOrders = async (currentTimestamp: bigint, orderExpiry: bigint, gracePeriod: bigint): Promise<number> => {
+  const firstOrderId = await readFirstOrderId(whaleSwapAddress);
+  const nextOrderId = await readNextOrderId(whaleSwapAddress);
+  let eligibleCount = 0;
+
+  for (let orderId = firstOrderId; orderId < nextOrderId; orderId += 1n) {
+    const order = await readOrder(whaleSwapAddress, orderId);
+    if (order.exists && currentTimestamp > order.timestamp + orderExpiry + gracePeriod) {
+      eligibleCount += 1;
+    }
+  }
+
+  return eligibleCount;
+};
+
 const selectTokenBySymbol = async (
   page: Page,
   type: 'sell' | 'buy',
@@ -72,6 +100,37 @@ const selectTokenBySymbol = async (
 
   await item.click();
   await expect(page.locator(`#${type}TokenSelector .token-symbol`)).toHaveText(tokenSymbol);
+};
+
+const createBasicOrder = async (page: Page): Promise<bigint> => {
+  await page.locator('.tab-button[data-tab="create-order"]').click();
+  await expect(page.locator('#sellTokenSelector')).toBeVisible();
+
+  await selectTokenBySymbol(page, 'sell', 'LTKA', LTKA);
+  await selectTokenBySymbol(page, 'buy', 'LTKB', LTKB);
+  await page.fill('#sellAmount', '2');
+  await page.fill('#buyAmount', '3');
+
+  const nextOrderIdBefore = await readNextOrderId(whaleSwapAddress);
+  const createOrderBtn = page.locator('#createOrderBtn');
+  await expect(createOrderBtn).toBeEnabled({ timeout: 15_000 });
+  await createOrderBtn.click();
+
+  await expect
+    .poll(async () => (await readNextOrderId(whaleSwapAddress)) === nextOrderIdBefore + 1n, {
+      timeout: 45_000,
+      intervals: [500, 1_000, 2_000]
+    })
+    .toBe(true);
+
+  const transactionToast = page.locator('.toast.toast-transaction').last();
+  await expect(transactionToast).toBeVisible({ timeout: 20_000 });
+  await transactionToast.locator('.toast-close').click();
+  await expect(transactionToast).toHaveCount(0, { timeout: 20_000 });
+  await expect(createOrderBtn).toHaveText('Create Order', { timeout: 20_000 });
+  await expect(createOrderBtn).toBeEnabled({ timeout: 20_000 });
+
+  return nextOrderIdBefore;
 };
 
 test.describe('WhaleSwap cleanup flow', () => {
@@ -238,5 +297,80 @@ test.describe('WhaleSwap cleanup flow', () => {
         intervals: [500, 1_000, 2_000]
       })
       .toBe(cleanerBalanceBeforeWithdraw + cleanerClaimableBeforeWithdraw);
+  });
+
+  test('cleanup tab decrements after one cleanup without refreshing the page', async ({ page, hardhatWallet, hardhatChain }) => {
+    test.setTimeout(180_000);
+
+    const orderCount = 2n;
+    await ensureAllowance(LTKA, MAKER, whaleSwapAddress, SELL_AMOUNT * orderCount);
+    await ensureAllowance(FEE_TOKEN, MAKER, whaleSwapAddress, ORDER_FEE_AMOUNT * orderCount);
+
+    const orderExpiry = await readOrderExpiry(whaleSwapAddress);
+    const gracePeriod = await readGracePeriod(whaleSwapAddress);
+
+    await page.goto(`/?chain=${chainQuery}`);
+    await page.locator('#walletConnect').click();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+    await page.reload();
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+
+    await createBasicOrder(page);
+    await createBasicOrder(page);
+
+    await hardhatWallet.switchAccount(page, CLEANER);
+    await page.reload();
+    await hardhatWallet.connect(page);
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(CLEANER), { timeout: 15_000 });
+
+    await increaseTime(orderExpiry + gracePeriod + 5n);
+    await page.reload();
+    await hardhatWallet.connect(page);
+    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(CLEANER), { timeout: 15_000 });
+
+    await page.locator('.tab-button[data-tab="cleanup-orders"]').click();
+
+    const eligibleCountBeforeCleanup = await countCleanupEligibleOrders(
+      await readCurrentChainTimestamp(hardhatChain.rpcCall),
+      orderExpiry,
+      gracePeriod
+    );
+    expect(eligibleCountBeforeCleanup).toBeGreaterThanOrEqual(Number(orderCount));
+
+    await expect
+      .poll(async () => await readCleanupReadyCount(page), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(eligibleCountBeforeCleanup);
+
+    const cleanupButton = page.locator('#cleanup-button');
+    await expect(cleanupButton).toBeEnabled({ timeout: 20_000 });
+
+    const firstOrderIdBeforeCleanup = await readFirstOrderId(whaleSwapAddress);
+    await cleanupButton.click();
+
+    await expect
+      .poll(async () => (await readFirstOrderId(whaleSwapAddress)) === firstOrderIdBeforeCleanup + 1n, {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(true);
+
+    const eligibleCountAfterCleanup = await countCleanupEligibleOrders(
+      await readCurrentChainTimestamp(hardhatChain.rpcCall),
+      orderExpiry,
+      gracePeriod
+    );
+    expect(eligibleCountAfterCleanup).toBe(eligibleCountBeforeCleanup - 1);
+
+    await expect
+      .poll(async () => await readCleanupReadyCount(page), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(eligibleCountAfterCleanup);
+
+    await expect(cleanupButton).toBeEnabled({ timeout: 20_000 });
   });
 });
