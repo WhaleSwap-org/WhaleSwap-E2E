@@ -34,6 +34,14 @@ const formatClaimAmount = (amount: bigint, decimals = 18) => {
   return fractionFormatted ? `${wholeFormatted}.${fractionFormatted}` : wholeFormatted;
 };
 
+const connectMakerWallet = async (page: Page) => {
+  await page.goto(`/?chain=${chainQuery}`);
+  await page.locator('#walletConnect').click();
+  await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+  await page.reload();
+  await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
+};
+
 const selectTokenBySymbol = async (
   page: Page,
   type: 'sell' | 'buy',
@@ -61,6 +69,71 @@ const selectTokenBySymbol = async (
   await expect(page.locator(`#${type}TokenSelector .token-symbol`)).toHaveText(tokenSymbol);
 };
 
+const createBasicOrder = async (page: Page) => {
+  await page.locator('.tab-button[data-tab="create-order"]').click();
+  await expect(page.locator('#sellTokenSelector')).toBeVisible();
+
+  await selectTokenBySymbol(page, 'sell', 'LTKA', LTKA);
+  await selectTokenBySymbol(page, 'buy', 'LTKB', LTKB);
+  await page.fill('#sellAmount', '2');
+  await page.fill('#buyAmount', '3');
+
+  const nextOrderIdBefore = await readNextOrderId(whaleSwapAddress);
+  const createdOrderId = nextOrderIdBefore.toString();
+
+  const createOrderBtn = page.locator('#createOrderBtn');
+  await expect(createOrderBtn).toBeEnabled({ timeout: 15_000 });
+  await createOrderBtn.click();
+
+  await expect
+    .poll(async () => (await readNextOrderId(whaleSwapAddress)) === nextOrderIdBefore + 1n, {
+      timeout: 45_000,
+      intervals: [500, 1_000, 2_000]
+    })
+    .toBe(true);
+
+  return createdOrderId;
+};
+
+const cancelOrderFromMyOrders = async (page: Page, createdOrderId: string) => {
+  await page.locator('.tab-button[data-tab="my-orders"]').click();
+  const myOrderRow = page.locator(`#my-orders tbody tr[data-order-id="${createdOrderId}"]`);
+  await expect(myOrderRow).toBeVisible({ timeout: 20_000 });
+
+  const cancelButton = myOrderRow.locator('.cancel-order-btn');
+  await expect(cancelButton).toBeVisible({ timeout: 20_000 });
+  await cancelButton.click();
+};
+
+const clearExistingClaimsIfVisible = async (page: Page) => {
+  const claimTabButton = page.locator('.tab-button[data-tab="claim"]');
+  if (!await claimTabButton.isVisible()) {
+    return;
+  }
+
+  await claimTabButton.click();
+
+  const claimButtons = page.locator('.claim-action-button');
+  let attempts = 0;
+  while (await claimButtons.count()) {
+    attempts += 1;
+    if (attempts > 10) {
+      throw new Error('Claim cleanup exceeded expected number of claim rows');
+    }
+
+    const countBefore = await claimButtons.count();
+    await claimButtons.first().click();
+    await expect
+      .poll(async () => await claimButtons.count(), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBeLessThan(countBefore);
+  }
+
+  await expect(claimTabButton).toBeHidden({ timeout: 20_000 });
+};
+
 test.describe('WhaleSwap cancel order flow', () => {
   test('maker cancels order, sees matching claim UI amount, and can claim', async ({ page }) => {
     test.setTimeout(180_000);
@@ -69,41 +142,9 @@ test.describe('WhaleSwap cancel order flow', () => {
     await ensureAllowance(FEE_TOKEN, MAKER, whaleSwapAddress, ORDER_FEE_AMOUNT);
     const makerClaimableBefore = await readClaimable(whaleSwapAddress, MAKER, LTKA);
 
-    await page.goto(`/?chain=${chainQuery}`);
-    await page.locator('#walletConnect').click();
-    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
-    await page.reload();
-    await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
-
-    await page.locator('.tab-button[data-tab="create-order"]').click();
-    await expect(page.locator('#sellTokenSelector')).toBeVisible();
-
-    await selectTokenBySymbol(page, 'sell', 'LTKA', LTKA);
-    await selectTokenBySymbol(page, 'buy', 'LTKB', LTKB);
-    await page.fill('#sellAmount', '2');
-    await page.fill('#buyAmount', '3');
-
-    const nextOrderIdBefore = await readNextOrderId(whaleSwapAddress);
-    const createdOrderId = nextOrderIdBefore.toString();
-
-    const createOrderBtn = page.locator('#createOrderBtn');
-    await expect(createOrderBtn).toBeEnabled({ timeout: 15_000 });
-    await createOrderBtn.click();
-
-    await expect
-      .poll(async () => (await readNextOrderId(whaleSwapAddress)) === nextOrderIdBefore + 1n, {
-        timeout: 45_000,
-        intervals: [500, 1_000, 2_000]
-      })
-      .toBe(true);
-
-    await page.locator('.tab-button[data-tab="my-orders"]').click();
-    const myOrderRow = page.locator(`#my-orders tbody tr[data-order-id="${createdOrderId}"]`);
-    await expect(myOrderRow).toBeVisible({ timeout: 20_000 });
-
-    const cancelButton = myOrderRow.locator('.cancel-order-btn');
-    await expect(cancelButton).toBeVisible({ timeout: 20_000 });
-    await cancelButton.click();
+    await connectMakerWallet(page);
+    const createdOrderId = await createBasicOrder(page);
+    await cancelOrderFromMyOrders(page, createdOrderId);
 
     await expect
       .poll(async () => (await readClaimable(whaleSwapAddress, MAKER, LTKA)) === makerClaimableBefore + SELL_AMOUNT, {
@@ -169,5 +210,72 @@ test.describe('WhaleSwap cancel order flow', () => {
         intervals: [500, 1_000, 2_000]
       })
       .toBe(makerBalanceBeforeWithdraw + makerClaimableBeforeWithdraw);
+  });
+
+  test('maker sees claim tab appear and can claim after cancel without reloading', async ({ page }) => {
+    test.setTimeout(180_000);
+
+    await ensureAllowance(LTKA, MAKER, whaleSwapAddress, SELL_AMOUNT);
+    await ensureAllowance(FEE_TOKEN, MAKER, whaleSwapAddress, ORDER_FEE_AMOUNT);
+
+    await connectMakerWallet(page);
+    await clearExistingClaimsIfVisible(page);
+
+    const claimTabButton = page.locator('.tab-button[data-tab="claim"]');
+    await expect(claimTabButton).toBeHidden();
+
+    const makerClaimableBefore = await readClaimable(whaleSwapAddress, MAKER, LTKA);
+    expect(makerClaimableBefore).toBe(0n);
+
+    const createdOrderId = await createBasicOrder(page);
+    await cancelOrderFromMyOrders(page, createdOrderId);
+
+    await expect
+      .poll(async () => await readClaimable(whaleSwapAddress, MAKER, LTKA), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(SELL_AMOUNT);
+
+    const myOrdersFilterToggle = page.locator('#my-orders #fillable-orders-toggle');
+    if ((await myOrdersFilterToggle.count()) > 0 && (await myOrdersFilterToggle.isChecked())) {
+      await myOrdersFilterToggle.uncheck();
+    }
+
+    const myOrderStatusCell = page.locator(`#my-orders tbody tr[data-order-id="${createdOrderId}"] td.order-status`);
+    await expect(myOrderStatusCell).toContainText('Canceled', { timeout: 20_000 });
+    await expect(page.locator(`#my-orders tbody tr[data-order-id="${createdOrderId}"] .cancel-order-btn`)).toHaveCount(0);
+
+    await expect(claimTabButton).toBeVisible({ timeout: 20_000 });
+    await claimTabButton.click();
+
+    const claimRow = page
+      .locator('.claim-row', { has: page.locator('.claim-token-symbol:text-is("LTKA")') })
+      .first();
+    await expect(claimRow).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(async () => ((await claimRow.locator('.claim-amount').textContent()) || '').trim(), {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(formatClaimAmount(SELL_AMOUNT));
+
+    const makerBalanceBeforeWithdraw = await readBalance(LTKA, MAKER);
+
+    await claimRow.locator('.claim-action-button').click();
+
+    await expect
+      .poll(async () => await readClaimable(whaleSwapAddress, MAKER, LTKA), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(0n);
+
+    await expect
+      .poll(async () => await readBalance(LTKA, MAKER), {
+        timeout: 45_000,
+        intervals: [500, 1_000, 2_000]
+      })
+      .toBe(makerBalanceBeforeWithdraw + SELL_AMOUNT);
   });
 });
