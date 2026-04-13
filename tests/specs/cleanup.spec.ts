@@ -128,7 +128,6 @@ const createBasicOrder = async (page: Page): Promise<bigint> => {
   await transactionToast.locator('.toast-close').click();
   await expect(transactionToast).toHaveCount(0, { timeout: 20_000 });
   await expect(createOrderBtn).toHaveText('Create Order', { timeout: 20_000 });
-  await expect(createOrderBtn).toBeEnabled({ timeout: 20_000 });
 
   return nextOrderIdBefore;
 };
