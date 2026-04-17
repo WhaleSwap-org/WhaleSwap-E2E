@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/testWithMockWallet';
-import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
+import { selectTokenBySymbol } from '../helpers/createOrder';
 import {
   ensureAllowance,
   readFeeToken,
@@ -24,33 +24,6 @@ const SELL_AMOUNT = 2n * 10n ** 18n;
 const NEW_FEE_UNITS = 2n * 10n ** 6n;
 
 const shortAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-
-const selectTokenBySymbol = async (
-  page: Page,
-  type: 'sell' | 'buy',
-  tokenSymbol: 'LTKA' | 'LTKB',
-  expectedAddress?: string
-) => {
-  await page.locator(`#${type}TokenSelector`).click();
-  const item = page
-    .locator(`#${type}AllowedTokenList .token-item`, {
-      has: page.locator(`.token-item-symbol:text-is("${tokenSymbol}")`)
-    })
-    .first();
-  await expect(item).toBeVisible({ timeout: 15_000 });
-
-  if (expectedAddress) {
-    const selectedAddress = await item.getAttribute('data-address');
-    if (!selectedAddress || selectedAddress.toLowerCase() !== expectedAddress.toLowerCase()) {
-      throw new Error(
-        `Expected ${tokenSymbol} address ${expectedAddress}, got ${selectedAddress || '<missing data-address>'}`
-      );
-    }
-  }
-
-  await item.click();
-  await expect(page.locator(`#${type}TokenSelector .token-symbol`)).toHaveText(tokenSymbol);
-};
 
 test.describe('WhaleSwap admin fee config', () => {
   test('owner updates fee config and new orders snapshot updated fee token/amount', async ({ page, hardhatWallet }) => {
