@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures/testWithMockWallet';
 import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
+import { selectTokenBySymbol } from '../helpers/createOrder';
 import { ensureAllowance, increaseTime, readGracePeriod, readNextOrderId, readOrderExpiry } from '../helpers/hardhatChain';
 
 const chainQuery = e2eConfig.chainQuery;
@@ -30,33 +31,6 @@ const readCleanupReadyCount = async (page: Page): Promise<number> => {
   const text = (await page.locator('#cleanup-ready').textContent())?.trim() || '';
   const value = Number.parseInt(text, 10);
   return Number.isFinite(value) ? value : -1;
-};
-
-const selectTokenBySymbol = async (
-  page: Page,
-  type: 'sell' | 'buy',
-  tokenSymbol: 'LTKA' | 'LTKB',
-  expectedAddress?: string
-) => {
-  await page.locator(`#${type}TokenSelector`).click();
-  const item = page
-    .locator(`#${type}AllowedTokenList .token-item`, {
-      has: page.locator(`.token-item-symbol:text-is("${tokenSymbol}")`)
-    })
-    .first();
-  await expect(item).toBeVisible({ timeout: 15_000 });
-
-  if (expectedAddress) {
-    const selectedAddress = await item.getAttribute('data-address');
-    if (!selectedAddress || selectedAddress.toLowerCase() !== expectedAddress.toLowerCase()) {
-      throw new Error(
-        `Expected ${tokenSymbol} address ${expectedAddress}, got ${selectedAddress || '<missing data-address>'}`
-      );
-    }
-  }
-
-  await item.click();
-  await expect(page.locator(`#${type}TokenSelector .token-symbol`)).toHaveText(tokenSymbol);
 };
 
 test.describe('WhaleSwap expiry and grace lifecycle', () => {
