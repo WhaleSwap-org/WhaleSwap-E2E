@@ -15,6 +15,31 @@ export async function selectTokenBySymbol(
     .first();
   await expect(item).toBeVisible({ timeout: 15_000 });
 
+  if (type === 'sell') {
+    await expect
+      .poll(
+        async () => {
+          const state = await item.locator('.token-balance-amount').evaluate((element) => {
+            const className = element instanceof HTMLElement ? element.className : '';
+            const text = element.textContent?.trim() || '';
+            return { className, text };
+          });
+
+          if (state.className.includes('balance-loading')) {
+            return 'loading';
+          }
+
+          if (state.className.includes('no-balance')) {
+            return 'no-balance';
+          }
+
+          return 'ready';
+        },
+        { timeout: 15_000, intervals: [250, 500, 1_000] }
+      )
+      .toBe('ready');
+  }
+
   const itemAddress = await item.getAttribute('data-address');
   const resolvedExpectedAddress = (expectedAddress || itemAddress || '').toLowerCase();
   if (!resolvedExpectedAddress) {
