@@ -3,6 +3,7 @@ import type { Dialog, Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
 import { readIsDisabled, readNextOrderId } from '../helpers/hardhatChain';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 const whaleSwapAddress = localDeployment.contracts.otcSwap;
@@ -25,7 +26,7 @@ const disableContractAsOwner = async (
   await page.goto(`/?chain=${chainQuery}`);
   await waitForAppReady(page);
   await hardhatWallet.switchAccount(page, OWNER);
-  await page.locator('#walletConnect').click();
+  await connectWalletFromUi(page);
   await expect(page.locator('#accountAddress')).toHaveText(shortAddress(OWNER), { timeout: 15_000 });
 
   const adminTabButton = page.locator('.tab-button[data-tab="admin"]');

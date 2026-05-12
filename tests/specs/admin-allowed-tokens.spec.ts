@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '../fixtures/testWithMockWallet';
+import { test, expect } from '../fixtures/testWithMockWallet';
+import type { Page } from '@playwright/test';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
 import { readIsAllowedToken } from '../helpers/hardhatChain';

@@ -9,6 +9,7 @@ import {
   readOrder,
   readOrderCreationFeeAmount
 } from '../helpers/hardhatChain';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 
@@ -34,7 +35,7 @@ test.describe('WhaleSwap admin fee config', () => {
 
     await page.goto(`/?chain=${chainQuery}`);
     await hardhatWallet.switchAccount(page, OWNER);
-    await page.locator('#walletConnect').click();
+    await connectWalletFromUi(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(OWNER), { timeout: 15_000 });
 
     const adminTabButton = page.locator('.tab-button[data-tab="admin"]');

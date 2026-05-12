@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/testWithMockWallet';
 import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.js';
 import { e2eConfig } from '../../e2e.config';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 
@@ -12,7 +13,7 @@ const shortAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
 test.describe('WhaleSwap admin access', () => {
   test('admin tab is hidden for non-owner and visible for owner', async ({ page, hardhatWallet }) => {
     await page.goto(`/?chain=${chainQuery}`);
-    await page.locator('#walletConnect').click();
+    await connectWalletFromUi(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(NON_OWNER), { timeout: 15_000 });
 
     const adminTabButton = page.locator('.tab-button[data-tab="admin"]');
