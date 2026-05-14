@@ -15,6 +15,7 @@ import {
   readOrder,
   readOrderExpiry
 } from '../helpers/hardhatChain';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 
@@ -122,7 +123,7 @@ test.describe('WhaleSwap cleanup flow', () => {
 
     if (firstOrderIdBefore === nextOrderIdBefore) {
       await page.goto(`/?chain=${chainQuery}`);
-      await page.locator('#walletConnect').click();
+      await connectWalletFromUi(page);
       await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
       await page.reload();
       await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
@@ -283,7 +284,7 @@ test.describe('WhaleSwap cleanup flow', () => {
     const gracePeriod = await readGracePeriod(whaleSwapAddress);
 
     await page.goto(`/?chain=${chainQuery}`);
-    await page.locator('#walletConnect').click();
+    await connectWalletFromUi(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
     await page.reload();
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });

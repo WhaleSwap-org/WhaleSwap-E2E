@@ -3,6 +3,7 @@ import { localDeployment } from '../../../whaleswap-ui/js/local-dev.deployment.j
 import { e2eConfig } from '../../e2e.config';
 import { selectTokenBySymbol } from '../helpers/createOrder';
 import { ensureAllowance, readBalance, readNextOrderId } from '../helpers/hardhatChain';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 
@@ -30,7 +31,7 @@ test.describe('WhaleSwap restricted taker flow', () => {
     await ensureAllowance(LTKB, AUTHORIZED_TAKER, whaleSwapAddress, BUY_AMOUNT);
 
     await page.goto(`/?chain=${chainQuery}`);
-    await page.locator('#walletConnect').click();
+    await connectWalletFromUi(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
     await page.reload();
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
@@ -128,7 +129,7 @@ test.describe('WhaleSwap restricted taker flow', () => {
     await ensureAllowance(LTKB, AUTHORIZED_TAKER, whaleSwapAddress, BUY_AMOUNT);
 
     await page.goto(`/?chain=${chainQuery}`);
-    await page.locator('#walletConnect').click();
+    await connectWalletFromUi(page);
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });
     await page.reload();
     await expect(page.locator('#accountAddress')).toHaveText(shortAddress(MAKER), { timeout: 15_000 });

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/testWithMockWallet';
 import { e2eConfig } from '../../e2e.config';
+import { connectWalletFromUi } from '../helpers/uiReady';
 
 const chainQuery = e2eConfig.chainQuery;
 const shortenAddress = (value: string) => `${value.slice(0, 6)}...${value.slice(-4)}`;
@@ -8,9 +9,7 @@ test.describe('WhaleSwap local wallet flow', () => {
   test('connects wallet from UI and shows connected account', async ({ page, hardhatWallet }) => {
     await page.goto(`/?chain=${chainQuery}`);
 
-    const walletConnect = page.locator('#walletConnect');
-    await expect(walletConnect).toBeVisible({ timeout: 15_000 });
-    await walletConnect.click();
+    await connectWalletFromUi(page);
 
     const accountAddress = page.locator('#accountAddress');
     await expect(accountAddress).toBeVisible({ timeout: 15_000 });
