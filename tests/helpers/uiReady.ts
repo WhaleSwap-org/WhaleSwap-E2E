@@ -38,7 +38,7 @@ export const connectWalletFromUi = async (page: Page, timeout = DEFAULT_TIMEOUT_
   await expect(walletConnect).toBeEnabled({ timeout });
   await walletConnect.click();
 
-  const walletOption = page.locator('#walletSelectionMenu:not(.hidden) [data-wallet-id="legacy:globalthis"]');
+  const walletOption = page.locator('#walletSelectionMenu:not(.hidden) [data-wallet-id="legacy:default"]');
   await expect(walletOption).toBeVisible({ timeout: Math.min(timeout, 10_000) });
   await walletOption.click();
 
